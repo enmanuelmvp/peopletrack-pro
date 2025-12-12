@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ import {
   Eye,
   Pencil,
   Trash2,
+  Upload,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,6 +37,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { exportToJSON, importFromJSON } from "@/lib/jsonExport";
+import { useToast } from "@/hooks/use-toast";
 
 interface Employee {
   id: string;
@@ -131,8 +134,29 @@ const Empleados = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [employeeData, setEmployeeData] = useState<Employee[]>(employees);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
-  const filteredEmployees = employees.filter((employee) => {
+  const handleExportJSON = () => {
+    exportToJSON(employeeData, `empleados_${new Date().toISOString().split('T')[0]}`);
+    toast({ title: "Exportado", description: "Datos exportados a JSON correctamente" });
+  };
+
+  const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = await importFromJSON<Employee[]>(file);
+      setEmployeeData(data);
+      toast({ title: "Importado", description: `${data.length} empleados importados correctamente` });
+    } catch {
+      toast({ title: "Error", description: "Archivo JSON inválido", variant: "destructive" });
+    }
+    e.target.value = '';
+  };
+
+  const filteredEmployees = employeeData.filter((employee) => {
     const matchesSearch =
       employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       employee.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -143,7 +167,7 @@ const Empleados = () => {
     return matchesSearch && matchesDepartment && matchesStatus;
   });
 
-  const departments = [...new Set(employees.map((e) => e.department))];
+  const departments = [...new Set(employeeData.map((e) => e.department))];
 
   return (
     <MainLayout>
@@ -200,9 +224,20 @@ const Empleados = () => {
               <SelectItem value="suspended">Suspendido</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" className="gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".json"
+            onChange={handleImportJSON}
+            className="hidden"
+          />
+          <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4" />
+            Importar
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={handleExportJSON}>
             <Download className="h-4 w-4" />
-            Exportar
+            Exportar JSON
           </Button>
         </div>
       </div>
@@ -316,7 +351,7 @@ const Empleados = () => {
       {/* Pagination Info */}
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground animate-slide-up" style={{ animationDelay: "300ms" }}>
         <p>
-          Mostrando {filteredEmployees.length} de {employees.length} empleados
+          Mostrando {filteredEmployees.length} de {employeeData.length} empleados
         </p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" disabled>
