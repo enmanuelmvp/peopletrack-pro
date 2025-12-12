@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +27,10 @@ import {
   TrendingDown,
   TrendingUp,
   Eye,
+  Upload,
 } from "lucide-react";
+import { exportToJSON, importFromJSON } from "@/lib/jsonExport";
+import { useToast } from "@/hooks/use-toast";
 
 interface PayrollRecord {
   id: string;
@@ -113,13 +117,35 @@ const formatCurrency = (amount: number) => {
 };
 
 const Nomina = () => {
-  const totalGross = payrollRecords.reduce((sum, r) => sum + r.grossSalary, 0);
-  const totalNet = payrollRecords.reduce((sum, r) => sum + r.netSalary, 0);
-  const totalDeductions = payrollRecords.reduce(
+  const [payrollData, setPayrollData] = useState<PayrollRecord[]>(payrollRecords);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const totalGross = payrollData.reduce((sum, r) => sum + r.grossSalary, 0);
+  const totalNet = payrollData.reduce((sum, r) => sum + r.netSalary, 0);
+  const totalDeductions = payrollData.reduce(
     (sum, r) => sum + r.afp + r.sfs + r.isr + r.otherDeductions,
     0
   );
-  const totalBonuses = payrollRecords.reduce((sum, r) => sum + r.bonuses, 0);
+  const totalBonuses = payrollData.reduce((sum, r) => sum + r.bonuses, 0);
+
+  const handleExportJSON = () => {
+    exportToJSON(payrollData, `nomina_${new Date().toISOString().split('T')[0]}`);
+    toast({ title: "Exportado", description: "Nómina exportada a JSON correctamente" });
+  };
+
+  const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = await importFromJSON<PayrollRecord[]>(file);
+      setPayrollData(data);
+      toast({ title: "Importado", description: `${data.length} registros importados correctamente` });
+    } catch {
+      toast({ title: "Error", description: "Archivo JSON inválido", variant: "destructive" });
+    }
+    e.target.value = '';
+  };
 
   return (
     <MainLayout>
@@ -229,9 +255,20 @@ const Nomina = () => {
               <SelectItem value="october">Octubre 2024</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" className="gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".json"
+            onChange={handleImportJSON}
+            className="hidden"
+          />
+          <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4" />
+            Importar
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={handleExportJSON}>
             <Download className="h-4 w-4" />
-            Exportar
+            Exportar JSON
           </Button>
         </div>
       </div>
@@ -253,7 +290,7 @@ const Nomina = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {payrollRecords.map((record, index) => (
+            {payrollData.map((record, index) => (
               <TableRow
                 key={record.id}
                 className="group hover:bg-muted/30 transition-colors"
@@ -316,7 +353,7 @@ const Nomina = () => {
         </div>
         <div className="flex items-center gap-4 text-sm">
           <span className="text-muted-foreground">
-            Empleados procesados: <span className="font-medium text-foreground">{payrollRecords.length}</span>
+            Empleados procesados: <span className="font-medium text-foreground">{payrollData.length}</span>
           </span>
           <Badge variant="secondary" className="gap-1">
             <DollarSign className="h-3 w-3" />

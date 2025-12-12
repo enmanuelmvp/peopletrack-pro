@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,10 @@ import {
   Clock,
   Download,
   Eye,
+  Upload,
 } from "lucide-react";
+import { exportToJSON, importFromJSON } from "@/lib/jsonExport";
+import { useToast } from "@/hooks/use-toast";
 
 interface VacationRequest {
   id: string;
@@ -130,18 +133,39 @@ const statusConfig = {
 
 const Vacaciones = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [vacationData, setVacationData] = useState<VacationRequest[]>(vacationRequests);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
-  const pendingCount = vacationRequests.filter(
+  const handleExportJSON = () => {
+    exportToJSON(vacationData, `vacaciones_${new Date().toISOString().split('T')[0]}`);
+    toast({ title: "Exportado", description: "Vacaciones exportadas a JSON correctamente" });
+  };
+
+  const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = await importFromJSON<VacationRequest[]>(file);
+      setVacationData(data);
+      toast({ title: "Importado", description: `${data.length} solicitudes importadas correctamente` });
+    } catch {
+      toast({ title: "Error", description: "Archivo JSON inválido", variant: "destructive" });
+    }
+    e.target.value = '';
+  };
+
+  const pendingCount = vacationData.filter(
     (r) => r.status === "pending"
   ).length;
-  const approvedCount = vacationRequests.filter(
+  const approvedCount = vacationData.filter(
     (r) => r.status === "approved"
   ).length;
-  const rejectedCount = vacationRequests.filter(
+  const rejectedCount = vacationData.filter(
     (r) => r.status === "rejected"
   ).length;
 
-  const filteredRequests = vacationRequests.filter(
+  const filteredRequests = vacationData.filter(
     (request) => statusFilter === "all" || request.status === statusFilter
   );
 
@@ -234,9 +258,20 @@ const Vacaciones = () => {
                   <SelectItem value="rejected">Rechazadas</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" className="gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".json"
+                onChange={handleImportJSON}
+                className="hidden"
+              />
+              <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" />
+                Importar
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={handleExportJSON}>
                 <Download className="h-4 w-4" />
-                Exportar
+                Exportar JSON
               </Button>
             </div>
           </div>
